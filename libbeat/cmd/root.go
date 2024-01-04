@@ -20,8 +20,10 @@ package cmd
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -106,6 +108,10 @@ func GenRootCmdWithSettings(beatCreator beat.Creator, settings instance.Settings
 	rootCmd.PersistentFlags().AddGoFlag(flag.CommandLine.Lookup("path.logs"))
 	rootCmd.PersistentFlags().AddGoFlag(flag.CommandLine.Lookup("path.home"))
 	rootCmd.PersistentFlags().AddGoFlag(flag.CommandLine.Lookup("strict.perms"))
+
+	// Add license flags
+	rootCmd.PersistentFlags().AddGoFlag(flag.CommandLine.Lookup("license"))
+
 	if f := flag.CommandLine.Lookup("plugin"); f != nil {
 		rootCmd.PersistentFlags().AddGoFlag(f)
 	}
@@ -122,6 +128,39 @@ func GenRootCmdWithSettings(beatCreator beat.Creator, settings instance.Settings
 	rootCmd.AddCommand(rootCmd.ExportCmd)
 	rootCmd.AddCommand(rootCmd.TestCmd)
 	rootCmd.AddCommand(rootCmd.KeystoreCmd)
+
+	// 所有命令许可验证拦截
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		if *licensePath == "" {
+			log.Fatal("miss license file info")
+		}
+
+		// 解析许可证
+		license, err := ParseLicenseFile(*licensePath)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// 验证许可
+		err = license.Validate()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if license.ExpiredAt != nil {
+			exp := time.Time(*license.ExpiredAt)
+			delta := time.Until(exp)
+			if delta < 0 {
+				log.Fatal("license expired")
+			}
+
+			go func() {
+				time.Sleep(delta)
+				fmt.Println("server exit because the license expired")
+				os.Exit(1)
+			}()
+		}
+	}
 
 	return rootCmd
 }

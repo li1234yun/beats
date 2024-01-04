@@ -36,7 +36,7 @@ import (
 
 const (
 	// Name of this beat.
-	Name = "packetbeat"
+	Name = "packet-audit"
 )
 
 // withECSVersion is a modifier that adds ecs.version to events.
